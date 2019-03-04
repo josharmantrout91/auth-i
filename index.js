@@ -8,9 +8,30 @@ const Users = require("./users/users-model.js");
 
 const server = express();
 
+// function for local middleware
+function checkUserAccess(req, res, next) {
+  const { username, password } = req.headers;
+
+  if (username && password) {
+    Users.findBy(username)
+      .first()
+      .then(user => {
+        if (user && bcrypt.compareSync(password, user.password)) {
+          next();
+        } else {
+          res.status(401).json({ error: "Invalid Credentials" });
+        }
+      })
+      .catch(error => {
+        res.status(500).json(error);
+      });
+  }
+}
+
 server.use(helmet());
 server.use(express.json());
 server.use(cors());
+// server.use("/api/restricted", checkUserAccess());
 
 server.get("/", (req, res) => {
   res.send("**Taps Mic** Is this thing on??");
@@ -57,7 +78,35 @@ server.post("/api/login", (req, res) => {
     });
 });
 
-// GET once user is authN/authZ to show list of users
+// POST once user is authN/authZ to show list of users
+server.post("/api/users", checkUserAccess, (req, res) => {
+  Users.find()
+    .then(users => {
+      res.json(users);
+    })
+    .catch(error => {
+      res.send(error);
+    });
+});
+
+// server.get("/api/users", (req, res) => {
+//   let { username, password } = req.body;
+
+//   Users.findBy(username)
+//     .first()
+//     .then(user => {
+//       if (user && bcrypt.compareSync(password, user.password)) {
+//         Users.find().then(users => {
+//           res.json(users);
+//         });
+//       } else {
+//         res.status(401).json({ error: "Invalid credentials" });
+//       }
+//     })
+//     .catch(error => {
+//       res.status(500).json(error);
+//     });
+// });
 
 const port = process.env.PORT || 5500;
 server.listen(port, () => console.log(`\n** Running on port ${port} **\n`));
