@@ -8,26 +8,6 @@ const Users = require("./users/users-model.js");
 
 const server = express();
 
-// function for local middleware
-function checkUserAccess(req, res, next) {
-  const { username, password } = req.headers;
-
-  if (username && password) {
-    Users.findBy(username)
-      .first()
-      .then(user => {
-        if (user && bcrypt.compareSync(password, user.password)) {
-          next();
-        } else {
-          res.status(401).json({ error: "Invalid Credentials" });
-        }
-      })
-      .catch(error => {
-        res.status(500).json(error);
-      });
-  }
-}
-
 server.use(helmet());
 server.use(express.json());
 server.use(cors());
@@ -77,6 +57,26 @@ server.post("/api/login", (req, res) => {
       res.status(500).json(error);
     });
 });
+
+// function for local middleware
+function checkUserAccess(req, res, next) {
+  const { username, password } = req.headers;
+
+  if (username && password) {
+    Users.findBy({ username })
+      .first()
+      .then(user => {
+        if (user && bcrypt.compareSync(password, user.password)) {
+          next();
+        } else {
+          res.status(401).json({ error: "Invalid Credentials" });
+        }
+      })
+      .catch(error => {
+        res.status(500).json({ message: "You dun goofed" });
+      });
+  }
+}
 
 // POST once user is authN/authZ to show list of users
 server.post("/api/users", checkUserAccess, (req, res) => {
