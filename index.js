@@ -2,16 +2,29 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
+const session = require("express-session");
 
 const db = require("./data/dbConfig.js");
 const Users = require("./users/users-model.js");
 
 const server = express();
 
+const sessionConfig = {
+  name: "malarkey",
+  secret: "If you have to ask, you will never know",
+  cookie: {
+    maxAge: 1000 * 60 * 60,
+    secure: false
+  },
+  httpOnly: true,
+  resave: false,
+  saveUninitialized: false
+};
+
 server.use(helmet());
 server.use(express.json());
 server.use(cors());
-// server.use("/api/restricted", checkUserAccess());
+server.use(session(sessionConfig));
 
 server.get("/", (req, res) => {
   res.send("**Taps Mic** Is this thing on??");
@@ -48,7 +61,10 @@ server.post("/api/login", (req, res) => {
     .first()
     .then(user => {
       if (user && bcrypt.compareSync(password, user.password)) {
-        res.status(200).json({ message: `Welcome, ${user.username}.` });
+        req.session.user = user;
+        res.status(200).json({
+          message: `Welcome, ${user.username}. Help yourself to a cookie`
+        });
       } else {
         res.status(401).json({ error: "Invalid Credentials" });
       }
@@ -58,55 +74,23 @@ server.post("/api/login", (req, res) => {
     });
 });
 
-// function for local middleware
+// function for local middleware to check login session
 function checkUserAccess(req, res, next) {
-  const { username, password } = req.headers;
-
-  if (username && password) {
-    Users.findBy({ username })
-      .first()
-      .then(user => {
-        if (user && bcrypt.compareSync(password, user.password)) {
-          next();
-        } else {
-          res.status(401).json({ error: "Invalid Credentials" });
-        }
-      })
-      .catch(error => {
-        res.status(500).json({ message: "You dun goofed" });
-      });
+  if (req.session && req.session.user) {
+    next();
+  } else {
+    res.status(401).json({ message: "You shall not pass!" });
   }
 }
 
-// POST once user is authN/authZ to show list of users
-server.post("/api/users", checkUserAccess, (req, res) => {
+// GET once user is authN/authZ to show list of users
+server.get("/api/users", checkUserAccess, (req, res) => {
   Users.find()
     .then(users => {
       res.json(users);
     })
-    .catch(error => {
-      res.send(error);
-    });
+    .catch(error => res.send(error));
 });
-
-// server.get("/api/users", (req, res) => {
-//   let { username, password } = req.body;
-
-//   Users.findBy(username)
-//     .first()
-//     .then(user => {
-//       if (user && bcrypt.compareSync(password, user.password)) {
-//         Users.find().then(users => {
-//           res.json(users);
-//         });
-//       } else {
-//         res.status(401).json({ error: "Invalid credentials" });
-//       }
-//     })
-//     .catch(error => {
-//       res.status(500).json(error);
-//     });
-// });
 
 const port = process.env.PORT || 5500;
 server.listen(port, () => console.log(`\n** Running on port ${port} **\n`));
